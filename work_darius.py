@@ -100,8 +100,7 @@ print(len(file_names))
 class WeatherDataset(Dataset):
     def __init__(self, file_names, targets_dict, metadata, lead_time=24):
         self.file_names = file_names
-        # Need to make sure these keys exist!!!!!!!!!!!!!!!
-        self.target_values = targets_dict['values']       # The 5 regression vars
+        self.target_values = targets_dict['values']       # The 6 regression vars
         self.target_labels = targets_dict['binary_label'] # The 1 rain label
         self.lead_time = lead_time
         
@@ -114,20 +113,19 @@ class WeatherDataset(Dataset):
         return len(self.file_names) - self.lead_time
 
     def __getitem__(self, idx):
-        # 1. Load Input (Current Time)
         fname = self.file_names[idx]
-        # Extract year from filename to find the right folder
-        year = fname.split('_')[1][:4] 
+        year = fname.split('_')[1][:4]
         path = f"{DATASET_DIR}/inputs/{year}/{fname}"
         
-        x = torch.load(path, weights_only=True).float() # (450, 449, 42)
-        x = x.permute(2, 0, 1) # PyTorch expects (Channels, H, W)
-        
-        # 2. Load Target (Current Time + 24 Hours)
-        target_idx = idx + self.lead_time
-        y_reg = self.target_values[target_idx]
-        y_cls = self.target_labels[target_idx]
-        
+        x = torch.load(path, weights_only=True).float()
+        x = x.permute(2, 0, 1)  # (42, H, W)
+
+        # DSWRF@surface (channel 5) is NaN at night — physically correct fill is 0.0
+        if x[5].isnan().any():
+            x[5] = torch.nan_to_num(x[5], nan=0.0)
+
+        y_reg = self.target_values[idx + self.lead_time]
+        y_cls = self.target_labels[idx + self.lead_time]
         return x, y_reg, y_cls
 
 # Model architecture
@@ -166,23 +164,112 @@ print("Begining training")
 
 # 2. Loop
 for epoch in range(10):
-    print("Starting epoch", epoch)
-    for batch_x, batch_y_reg, batch_y_cls in train_loader:
-        batch_x = batch_x.to(device)
+    print(f"\n{'='*60}")
+    print(f"Starting epoch {epoch}")
+    
+    nan_batches = 0
+    total_batches = 0
+    running_loss_reg = 0.0
+    running_loss_cls = 0.0
+
+    for batch_idx, (batch_x, batch_y_reg, batch_y_cls) in enumerate(train_loader):
+        batch_x     = batch_x.to(device)
         batch_y_reg = batch_y_reg.to(device)
         batch_y_cls = batch_y_cls.to(device)
-        
-        # Forward
+        total_batches += 1
+
+        # ── DEBUG: Check inputs on first batch of first epoch ──────────
+        if epoch == 0 and batch_idx == 0:
+            print(f"\n[DEBUG] batch_x      shape={batch_x.shape}  "
+                  f"min={batch_x.min():.4f}  max={batch_x.max():.4f}  "
+                  f"has_nan={batch_x.isnan().any().item()}  "
+                  f"has_inf={batch_x.isinf().any().item()}")
+            print(f"[DEBUG] batch_y_reg  shape={batch_y_reg.shape}  "
+                  f"min={batch_y_reg.min():.4f}  max={batch_y_reg.max():.4f}  "
+                  f"has_nan={batch_y_reg.isnan().any().item()}")
+            print(f"[DEBUG] batch_y_cls  shape={batch_y_cls.shape}  "
+                  f"unique={batch_y_cls.unique().tolist()}  "
+                  f"has_nan={batch_y_cls.isnan().any().item()}")
+
+        # ── Forward ────────────────────────────────────────────────────
         preds = model(batch_x)
-        
-        # Calculate Loss
-        loss_reg = mse_loss_fn(preds[:, :6], batch_y_reg)
-        loss_cls = bce_loss_fn(preds[:, 6], batch_y_cls.float())
+
+        # ── DEBUG: Check predictions on first batch of first epoch ─────
+        if epoch == 0 and batch_idx == 0:
+            print(f"[DEBUG] preds        shape={preds.shape}  "
+                  f"min={preds.min():.4f}  max={preds.max():.4f}  "
+                  f"has_nan={preds.isnan().any().item()}")
+
+        # ── Loss ───────────────────────────────────────────────────────
+        loss_reg   = mse_loss_fn(preds[:, :6], batch_y_reg)
+        loss_cls   = bce_loss_fn(preds[:, 6],  batch_y_cls.float())
         total_loss = loss_reg + loss_cls
-        
-        # Backward
+
+        # ── DEBUG: Detect NaN/Inf loss ─────────────────────────────────
+        loss_reg_val = loss_reg.item()
+        loss_cls_val = loss_cls.item()
+        total_val    = total_loss.item()
+
+        is_nan = (
+            loss_reg.isnan().item() or
+            loss_cls.isnan().item() or
+            total_loss.isnan().item()
+        )
+
+        if is_nan or batch_idx % 50 == 0:
+            print(f"  [Batch {batch_idx:04d}]  "
+                  f"loss_reg={loss_reg_val:.4f}  "
+                  f"loss_cls={loss_cls_val:.4f}  "
+                  f"total={total_val:.4f}")
+
+        if is_nan:
+            nan_batches += 1
+            print(f"  *** NaN DETECTED at batch {batch_idx} ***")
+
+            # Find which samples and channels contain NaN
+            nan_samples = batch_x.isnan().any(dim=(1,2,3)).nonzero(as_tuple=True)[0]
+            if len(nan_samples):
+                print(f"      NaN input samples (indices): {nan_samples.tolist()}")
+                for s in nan_samples[:3]:  # show at most 3
+                    nan_chans = batch_x[s].isnan().any(dim=(1,2)).nonzero(as_tuple=True)[0]
+                    print(f"      Sample {s.item()} — NaN channels: {nan_chans.tolist()}")
+
+            # Check if gradients were already NaN before this step
+            grad_nans = {
+                name: p.grad.isnan().any().item()
+                for name, p in model.named_parameters()
+                if p.grad is not None
+            }
+            nan_grad_layers = [k for k, v in grad_nans.items() if v]
+            if nan_grad_layers:
+                print(f"      NaN gradients in: {nan_grad_layers}")
+
+            # Print prediction stats to see where things went wrong
+            print(f"      preds stats: min={preds.min():.4f}  "
+                  f"max={preds.max():.4f}  "
+                  f"has_nan={preds.isnan().any().item()}")
+            if nan_batches >= 3:
+                print("  Too many NaN batches — stopping early for diagnosis.")
+                break
+
+        # ── Backward ───────────────────────────────────────────────────
         optimizer.zero_grad()
         total_loss.backward()
+
+        # ── DEBUG: Gradient norm (helps spot explosions) ───────────────
+        total_grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=float('inf'))
+        if batch_idx % 50 == 0 or is_nan:
+            print(f"           grad_norm={total_grad_norm:.4f}")
+
         optimizer.step()
-        
-    print(f"Epoch {epoch} complete. Loss: {total_loss.item()}")
+
+        if not is_nan:
+            running_loss_reg += loss_reg_val
+            running_loss_cls += loss_cls_val
+
+    good_batches = total_batches - nan_batches
+    print(f"\nEpoch {epoch} summary:")
+    print(f"  Total batches : {total_batches}  |  NaN batches: {nan_batches}")
+    if good_batches > 0:
+        print(f"  Avg loss_reg  : {running_loss_reg / good_batches:.4f}")
+        print(f"  Avg loss_cls  : {running_loss_cls / good_batches:.4f}")
