@@ -1,0 +1,168 @@
+Begining training
+
+============================================================
+Starting epoch 0
+
+[DEBUG] batch_x      shape=torch.Size([32, 42, 450, 449])  min=-133.0000  max=5984.0000  has_nan=False  has_inf=False
+[DEBUG] batch_y_reg  shape=torch.Size([32, 6])  min=-5.6367  max=305.2500  has_nan=False
+[DEBUG] batch_y_cls  shape=torch.Size([32])  unique=[False]  has_nan=False
+[DEBUG] preds        shape=torch.Size([32, 7])  min=-0.9538  max=1.7921  has_nan=False
+  [Batch 0000]  loss_reg=14638.3320  loss_cls=1.0091  total=14639.3408
+           grad_norm=89815.1484
+  [Batch 0050]  loss_reg=327.7972  loss_cls=3.0586  total=330.8559
+           grad_norm=11778.3369
+  [Batch 0100]  loss_reg=128.4317  loss_cls=0.0000  total=128.4317
+           grad_norm=6801.6226
+
+Epoch 0 summary:
+  Total batches : 129  |  NaN batches: 0
+  Avg loss_reg  : 5484.2703
+  Avg loss_cls  : 8.3621
+  Checkpoint saved → checkpoints/checkpoint_epoch_000.pt
+  *** New best model saved → checkpoints/best_model.pt  (loss=5492.6324) ***
+
+============================================================
+Starting epoch 1
+  
+  [Batch 0000]  loss_reg=107.2020  loss_cls=0.0000  total=107.2020
+           grad_norm=6152.5239
+  [Batch 0050]  loss_reg=28.3852  loss_cls=0.0000  total=28.3852
+           grad_norm=1659.8738
+  [Batch 0100]  loss_reg=36.1803  loss_cls=0.0000  total=36.1803
+           grad_norm=2346.0171
+
+Epoch 1 summary:
+  Total batches : 129  |  NaN batches: 0
+  Avg loss_reg  : 41.3123
+  Avg loss_cls  : 2.7101
+  Checkpoint saved → checkpoints/checkpoint_epoch_001.pt
+  *** New best model saved → checkpoints/best_model.pt  (loss=44.0223) ***
+
+============================================================
+Starting epoch 2
+  [Batch 0000]  loss_reg=45.3111  loss_cls=3.5540  total=48.8652
+           grad_norm=3076.1255
+  [Batch 0050]  loss_reg=37.3691  loss_cls=1.6730  total=39.0421
+           grad_norm=1634.0800
+  [Batch 0100]  loss_reg=28.8608  loss_cls=3.9755  total=32.8363
+           grad_norm=1860.7981
+
+Epoch 2 summary:
+  Total batches : 129  |  NaN batches: 0
+  Avg loss_reg  : 29.4169
+  Avg loss_cls  : 1.5331
+  Checkpoint saved → checkpoints/checkpoint_epoch_002.pt
+  *** New best model saved → checkpoints/best_model.pt  (loss=30.9501) ***
+
+============================================================
+Starting epoch 3
+  [Batch 0000]  loss_reg=21.1261  loss_cls=0.0000  total=21.1261
+           grad_norm=1258.8511
+  [Batch 0050]  loss_reg=18.9839  loss_cls=0.0249  total=19.0088
+           grad_norm=1367.3411
+  [Batch 0100]  loss_reg=34.5609  loss_cls=3.5240  total=38.0850
+           grad_norm=1950.7931
+
+Epoch 3 summary:
+
+  Total batches : 129  |  NaN batches: 0
+  Avg loss_reg  : 25.7074
+  Avg loss_cls  : 2.8944
+  Checkpoint saved → checkpoints/checkpoint_epoch_003.pt
+  *** New best model saved → checkpoints/best_model.pt  (loss=28.6018) ***
+
+============================================================
+Starting epoch 4
+  [Batch 0000]  loss_reg=27.1824  loss_cls=3.8229  total=31.0053
+           grad_norm=2054.1079
+  [Batch 0050]  loss_reg=33.2963  loss_cls=3.5825  total=36.8788
+           grad_norm=2915.4568
+  [Batch 0100]  loss_reg=19.6511  loss_cls=0.8782  total=20.5293
+           grad_norm=1237.0422
+
+
+Epoch 4 summary:
+  Total batches : 129  |  NaN batches: 0
+  Avg loss_reg  : 23.2832
+  Avg loss_cls  : 1.9481
+  Checkpoint saved → checkpoints/checkpoint_epoch_004.pt
+  *** New best model saved → checkpoints/best_model.pt  (loss=25.2313) ***
+
+============================================================
+Starting epoch 5
+  [Batch 0000]  loss_reg=16.5140  loss_cls=0.1784  total=16.6924
+           grad_norm=1259.2592
+  [Batch 0050]  loss_reg=27.3698  loss_cls=4.8460  total=32.2158
+           grad_norm=2178.0027
+  [Batch 0100]  loss_reg=18.3828  loss_cls=0.0000  total=18.3828
+           grad_norm=1305.3566
+
+Epoch 5 summary:
+  Total batches : 129  |  NaN batches: 0
+  Avg loss_reg  : 21.9990
+  Avg loss_cls  : 2.5163
+  Checkpoint saved → checkpoints/checkpoint_epoch_005.pt
+  *** New best model saved → checkpoints/best_model.pt  (loss=24.5153) ***
+
+============================================================
+Starting epoch 6
+  [Batch 0000]  loss_reg=23.2540  loss_cls=1.7519  total=25.0059
+           grad_norm=1819.2125
+  [Batch 0050]  loss_reg=11.6372  loss_cls=4.5118  total=16.1491
+           grad_norm=858.9581
+  [Batch 0100]  loss_reg=18.4442  loss_cls=0.0002  total=18.4445
+           grad_norm=1536.2097
+
+Epoch 6 summary:
+  Total batches : 129  |  NaN batches: 0
+  Avg loss_reg  : 20.3648
+  Avg loss_cls  : 1.8975
+  Checkpoint saved → checkpoints/checkpoint_epoch_006.pt
+  *** New best model saved → checkpoints/best_model.pt  (loss=22.2624) ***
+
+============================================================
+Starting epoch 7
+  [Batch 0000]  loss_reg=9.7893  loss_cls=0.0000  total=9.7893
+           grad_norm=1116.7235
+  [Batch 0050]  loss_reg=14.9607  loss_cls=0.0000  total=14.9607
+           grad_norm=1146.5878
+  [Batch 0100]  loss_reg=15.7208  loss_cls=0.0000  total=15.7208
+           grad_norm=1088.3754
+
+Epoch 7 summary:
+  Total batches : 129  |  NaN batches: 0
+  Avg loss_reg  : 16.6495
+  Avg loss_cls  : 1.4937
+  Checkpoint saved → checkpoints/checkpoint_epoch_007.pt
+  *** New best model saved → checkpoints/best_model.pt  (loss=18.1432) ***
+
+============================================================
+Starting epoch 8
+  [Batch 0000]  loss_reg=10.8377  loss_cls=0.3776  total=11.2153
+           grad_norm=1043.6344
+  [Batch 0050]  loss_reg=18.6226  loss_cls=1.3164  total=19.9390
+           grad_norm=1807.5054
+  [Batch 0100]  loss_reg=9.6416  loss_cls=0.0000  total=9.6416
+           grad_norm=968.1449
+
+Epoch 8 summary:
+  Total batches : 129  |  NaN batches: 0
+  Avg loss_reg  : 14.7536
+  Avg loss_cls  : 1.5044
+  Checkpoint saved → checkpoints/checkpoint_epoch_008.pt
+  *** New best model saved → checkpoints/best_model.pt  (loss=16.2580) ***
+
+============================================================
+Starting epoch 9
+  [Batch 0000]  loss_reg=19.8638  loss_cls=0.0000  total=19.8638
+           grad_norm=2363.4673
+  [Batch 0050]  loss_reg=23.7675  loss_cls=1.3112  total=25.0787
+           grad_norm=2617.5906
+  [Batch 0100]  loss_reg=9.6251  loss_cls=0.6972  total=10.3223
+           grad_norm=732.7854
+
+Epoch 9 summary:
+  Total batches : 129  |  NaN batches: 0
+  Avg loss_reg  : 14.1400
+  Avg loss_cls  : 1.1931
+  Checkpoint saved → checkpoints/checkpoint_epoch_009.pt
