@@ -7,10 +7,9 @@ from torch.utils.data import Dataset, DataLoader, Subset
 
 
 device = torch.device("cuda")
-DATASET_DIR = '/cluster/tufts/c26sp1cs0137/data/assignment2_data/dataset'
-metadata = torch.load(f'{DATASET_DIR}/metadata.pt', weights_only=False)
-targets = torch.load(f'{DATASET_DIR}/targets.pt', weights_only=False)
-
+DATASET_DIR = "/cluster/tufts/c26sp1cs0137/data/assignment2_data/dataset"
+metadata = torch.load(f"{DATASET_DIR}/metadata.pt", weights_only=False)
+targets = torch.load(f"{DATASET_DIR}/targets.pt", weights_only=False)
 
 
 # ── 1. Convolution Layer ──────────────────────────────────────────────────────
@@ -22,9 +21,9 @@ class ConvLayer(nn.Module):
             out_channels,
             kernel_size=3,
             stride=1,
-            padding=1   # padding=1 keeps H/W identical with kernel_size=3
+            padding=1,  # padding=1 keeps H/W identical with kernel_size=3
         )
-        self.bn   = nn.BatchNorm2d(out_channels)
+        self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x):
@@ -42,16 +41,18 @@ class MaxPoolLayer(nn.Module):
         # x: (B, 64, 450, 449) → (B, 64, 225, 224)
         return self.pool(x)
 
+
 # Linear layer
 class FCLayer(nn.Module):
     def __init__(self, num_classes=7):
         super().__init__()
         self.flatten = nn.Flatten()
-        self.fc      = nn.LazyLinear(num_classes)  # ← infers in_features automatically
+        self.fc = nn.LazyLinear(num_classes)  # ← infers in_features automatically
 
     def forward(self, x):
         x = self.flatten(x)
         return self.fc(x)
+
 
 # Get the data for a specific year
 # Total number of files per year
@@ -65,14 +66,15 @@ n_2019 = 8760
 n_2020 = 8784
 n_2021 = 4608
 
-start_date_2018 = '2018-07-13T00:00'
-start_date_2019 = '2019-01-01T00:00'
-start_date_2020 = '2020-01-01T00:00'
-start_date_2021 = '2021-01-01T00:00'
+start_date_2018 = "2018-07-13T00:00"
+start_date_2019 = "2019-01-01T00:00"
+start_date_2020 = "2020-01-01T00:00"
+start_date_2021 = "2021-01-01T00:00"
 
 import torch, os
 from collections import defaultdict
 from tqdm import tqdm
+
 
 def scan_dataset_for_nans(file_names, dataset_dir, max_files=None):
     """
@@ -81,14 +83,14 @@ def scan_dataset_for_nans(file_names, dataset_dir, max_files=None):
       - Which channels are dirty (nan count per channel across all files)
       - Which channels are dirty in targets
     """
-    channel_nan_counts = defaultdict(int)   # channel_idx -> total nan pixels
-    channel_nan_files  = defaultdict(set)   # channel_idx -> set of filenames
+    channel_nan_counts = defaultdict(int)  # channel_idx -> total nan pixels
+    channel_nan_files = defaultdict(set)  # channel_idx -> set of filenames
     dirty_files = []
 
     files_to_scan = file_names[:max_files] if max_files else file_names
 
     for fname in tqdm(files_to_scan, desc="Scanning"):
-        year = fname.split('_')[1][:4]
+        year = fname.split("_")[1][:4]
         path = f"{dataset_dir}/inputs/{year}/{fname}"
         try:
             x = torch.load(path, weights_only=True).float()  # (H, W, 42)
@@ -110,24 +112,31 @@ def scan_dataset_for_nans(file_names, dataset_dir, max_files=None):
     print(f"Dirty files: {len(dirty_files)} / {len(files_to_scan)}")
     print(f"\nChannels with NaNs (sorted by total nan count):")
     for c, count in sorted(channel_nan_counts.items(), key=lambda x: -x[1]):
-        print(f"  Channel {c:2d}: {count:>10,} NaN pixels across {len(channel_nan_files[c])} files")
+        print(
+            f"  Channel {c:2d}: {count:>10,} NaN pixels across {len(channel_nan_files[c])} files"
+        )
 
     return channel_nan_counts, channel_nan_files, dirty_files
+
 
 def generate_datetime_strings(start_date: str, n: int) -> list[str]:
     """
     Generate YYYYMMDDHH strings for n dates starting from start_date,
     incrementing by 24 hours each step.
-    
+
     Args:
         start_date: Date string in format 'YYYY-MM-DDTHH:MM'
         n: Number of dates to generate
-    
+
     Returns:
         List of strings in YYYYMMDDHH format
     """
     dt = pd.Timestamp(start_date)
-    return [("X_" + (dt + pd.Timedelta(hours=1 * i)).strftime('%Y%m%d%H') + ".pt") for i in range(n)]
+    return [
+        ("X_" + (dt + pd.Timedelta(hours=1 * i)).strftime("%Y%m%d%H") + ".pt")
+        for i in range(n)
+    ]
+
 
 tensor_names_2018 = generate_datetime_strings(start_date_2018, n_2018)
 tensor_names_2019 = generate_datetime_strings(start_date_2019, n_2019)
@@ -138,9 +147,11 @@ files = tensor_names_2018 + tensor_names_2019 + tensor_names_2020 + tensor_names
 
 import os
 
+
 def delete_by_indices(lst: list, bad_indices: list) -> list:
     bad_set = set(bad_indices)
     return [val for i, val in enumerate(lst) if i not in bad_set]
+
 
 # def filter_nan_files(file_names, dataset_dir, skip_channel=5, start_value=9000):
 #     """
@@ -171,7 +182,7 @@ def delete_by_indices(lst: list, bad_indices: list) -> list:
 #                 bad_indices_y.append(i+24)
 #         if i % 1000 == 0:
 #             print(i)
- 
+
 #     return bad_indices_x, bad_indices_y
 
 # bad_indices_x, bad_indices_y = filter_nan_files(files, DATASET_DIR)
@@ -184,89 +195,188 @@ def delete_by_indices(lst: list, bad_indices: list) -> list:
 #     f.write("\n".join(str(i) for i in bad_indices_y))
 
 # assert(len(bad_indices_x) == len(bad_indices_x))
+# --- Compute stats from training data ONLY ---
+# Run this once before training and save the results
+
+
+def compute_channel_stats(dataset, num_channels=42):
+    """Compute per-channel mean and std across all training samples."""
+    channel_sum = torch.zeros(num_channels)
+    channel_sq_sum = torch.zeros(num_channels)
+    count = 0
+
+    for x, _, _ in DataLoader(dataset, batch_size=64, shuffle=False):
+        # x: (B, 42, H, W)
+        b, c, h, w = x.shape
+        pixels = b * h * w
+        channel_sum += x.sum(dim=(0, 2, 3))  # sum over B, H, W
+        channel_sq_sum += (x**2).sum(dim=(0, 2, 3))
+        count += pixels
+
+    mean = channel_sum / count
+    std = (channel_sq_sum / count - mean**2).sqrt()
+    std[std < 1e-6] = 1.0  # constant channels (e.g. land mask)
+    return mean, std  # both shape: (42,)
+
+
 with open("bad_indices_x.txt") as f:
     bad_indices_x = [int(line.strip()) for line in f]
 
 with open("bad_indices_y.txt") as f:
     bad_indices_y = [int(line.strip()) for line in f]
 file_names = delete_by_indices(files, bad_indices_x)
-y_reg = delete_by_indices(targets['values'], bad_indices_y)
-y_cls = delete_by_indices(targets['binary_label'], bad_indices_y)
-
-
 
 
 class WeatherDataset(Dataset):
-    def __init__(self, file_names, metadata, y_reg_input, y_cls_input, lead_time=24):
+    def __init__(
+        self,
+        file_names,
+        metadata,
+        y_reg_input,
+        y_cls_input,
+        lead_time=24,
+        channel_mean=None,
+        channel_std=None,
+    ):
         self.file_names = file_names
-        self.target_values = y_reg_input       # The 6 regression vars
-        self.target_labels = y_cls_input # The 1 rain label
+        self.target_values = y_reg_input
+        self.target_labels = y_cls_input
         self.lead_time = lead_time
-        
-        # Crop parameters (optional but recommended)
-        self.iy = metadata['jumbo_y_idx']
-        self.ix = metadata['jumbo_x_idx']
+        self.iy = metadata["jumbo_y_idx"]
+        self.ix = metadata["jumbo_x_idx"]
+
+        # Normalization (None = no-op during stat collection pass)
+        self.mean = channel_mean  # (42,) or None
+        self.std = channel_std  # (42,) or None
 
     def __len__(self):
-        # We stop 24 hours early because we don't have "future" targets for the last day
         return len(self.file_names) - self.lead_time
 
     def __getitem__(self, idx):
-            fname = self.file_names[idx]
-            year = fname.split('_')[1][:4]
-            path = f"{DATASET_DIR}/inputs/{year}/{fname}"
-            
-            x = torch.load(path, weights_only=True).float()
-            x = x.permute(2, 0, 1)  # (42, H, W)
+        fname = self.file_names[idx]
+        year = fname.split("_")[1][:4]
+        path = f"{DATASET_DIR}/inputs/{year}/{fname}"
 
-            # DSWRF@surface (channel 5) is NaN at night — physically correct fill is 0.0
-            if x[5].isnan().any():
-                x[5] = torch.nan_to_num(x[5], nan=0.0)
+        x = torch.load(path, weights_only=True).float()
+        x = x.permute(2, 0, 1)  # (42, H, W)
 
-            # # NaN inspection
-            # nan_channels = x.isnan().any(dim=-1).any(dim=-1)  # shape (42,)
-            # if nan_channels.any():
-            #     print(f"[NaN] file={fname}")
-            #     for ch in nan_channels.nonzero(as_tuple=True)[0].tolist():
-            #         n = x[ch].isnan().sum().item()
-            #         print(f"  channel {ch:02d}: {n} NaNs  "
-            #             f"(min={x[ch].nanmean():.4f}, mean={torch.nanmean(x[ch]):.4f})")
+        # Fix NaN in DSWRF@surface (night = 0)
+        if x[5].isnan().any():
+            x[5] = torch.nan_to_num(x[5], nan=0.0)
 
-            y_reg = self.target_values[idx + self.lead_time]
-            y_cls = self.target_labels[idx + self.lead_time]
-            return x, y_reg, y_cls
+        # Normalize per channel
+        if self.mean is not None and self.std is not None:
+            x = (x - self.mean[:, None, None]) / self.std[:, None, None]
+
+        y_reg = self.target_values[idx + self.lead_time]
+        y_cls = self.target_labels[idx + self.lead_time]
+        return x, y_reg, y_cls
+
 
 # Model architecture
 class WeatherCNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.layer1 = ConvLayer(42, 64)
-        self.pool1  = MaxPoolLayer()
+        self.pool1 = MaxPoolLayer()
         self.layer2 = ConvLayer(64, 128)
-        self.pool2  = MaxPoolLayer()
+        self.pool2 = MaxPoolLayer()
         # You can add more layers here to get deeper!
-        
-        self.head   = FCLayer() 
+
+        self.head = FCLayer()
 
     def forward(self, x):
         x = self.layer1(x)
         x = self.pool1(x)
         x = self.layer2(x)
         x = self.pool2(x)
-        
-        out = self.head(x) # Returns 7 values
+
+        out = self.head(x)  # Returns 7 values
         return out
+
 
 # 1. Setup
 print("Setup")
+
+length = len(targets["values"])
+mask = torch.ones(length, dtype=torch.bool)
+mask[bad_indices_y] = False
+y_reg = targets["values"][mask]
+y_cls = targets["binary_label"][mask]
+
+print("NaNs per column:", y_reg.isnan().sum(dim=0))  # expect (6,)
+print("Total rows:", len(y_reg))
+
+valid_mask = ~y_reg.isnan().any(dim=1)
+print("Valid rows:", valid_mask.sum())  # expect ~25518
+
+y_reg_mean = y_reg[valid_mask].mean(dim=0)
+y_reg_std  = y_reg[valid_mask].std(dim=0)
+y_reg_std[y_reg_std < 1e-6] = 1.0
+
+print("y_reg_mean1:", y_reg_mean)
+print("y_reg_std1:", y_reg_std)
+
+# y indices still null
+# valid_indices = [
+#     i
+#     for i in range(len(file_names) - 24)
+#     if (not y_reg[i + 24].isnan().any() and not y_cls[i + 24].isnan().any())
+# ]
+# print(f"Valid samples1: {len(valid_indices)} / {len(file_names) - 24}")
+
+# # y_reg shape: (N, 6)
+# y_reg_mean = y_reg[valid_indices].mean(dim=0)  # (6,)
+# y_reg_std = y_reg[valid_indices].std(dim=0)  # (6,)
+# y_reg_std[y_reg_std < 1e-6] = 1.0
+
+y_reg_norm = (y_reg - y_reg_mean) / y_reg_std
+
+print("NaNs in y_reg before norm:", y_reg.isnan().sum())
+print("Zeros in y_reg_std:", (y_reg_std < 1e-6).sum())
+print("NaNs in y_reg_norm after:", y_reg_norm.isnan().sum())
+
+print("y_reg shape:", y_reg.shape)           # expect (N, 6)
+print("y_reg_mean shape:", y_reg_mean.shape) # expect (6,)
+print("y_reg_std shape:", y_reg_std.shape)   # expect (6,)
+print("y_reg dtype:", y_reg.dtype)
+print("y_reg_mean dtype:", y_reg_mean.dtype)
+
+print("len1:", len(y_reg_norm))
+print("len2", len(y_cls))
+assert(len(y_reg_norm) == len(y_cls))
 # y indices still null
 valid_indices = [
-    i for i in range(len(file_names) - 24)
-    if (not y_reg[i + 24].isnan().any() and not y_cls[i + 24].isnan().any())
+    i
+    for i in range(len(file_names) - 24)
+    if (not y_reg_norm[i + 24].isnan().any() and not y_cls[i + 24].isnan().any())
 ]
-print(f"Valid samples: {len(valid_indices)} / {len(file_names) - 24}")
+print(f"Valid samples1: {len(valid_indices)} / {len(file_names) - 24}")
 
-dataset = Subset(WeatherDataset(file_names, metadata, y_reg, y_cls), valid_indices)
+# torch.save({"mean": y_reg_mean, "std": y_reg_std}, "target_stats.pt")
+
+# # First creating the raw dataset to compute the mean and std
+# raw_dataset = WeatherDataset(
+#     file_names, metadata, y_reg_norm, y_cls, channel_mean=None, channel_std=None
+# )
+# channel_mean, channel_std = compute_channel_stats(raw_dataset)
+# torch.save({"mean": channel_mean, "std": channel_std}, "channel_stats.pt")
+
+channel_stats = torch.load("channel_stats.pt")
+channel_mean, channel_std = channel_stats["mean"], channel_stats["std"]
+
+dataset = Subset(
+    WeatherDataset(
+        file_names,
+        metadata,
+        y_reg_norm,
+        y_cls,
+        channel_mean=channel_mean,
+        channel_std=channel_std,
+    ),
+    valid_indices,
+)
+
 train_loader = DataLoader(dataset, batch_size=128, shuffle=True)
 
 model = WeatherCNN().to(device)
@@ -287,7 +397,7 @@ best_loss = float('inf')
 for epoch in range(20):
     print(f"\n{'='*60}")
     print(f"Starting epoch {epoch}")
-    
+
     nan_batches = 0
     total_batches = 0
     running_loss_reg = 0.0
@@ -310,7 +420,7 @@ for epoch in range(20):
         # batch_y_reg_norm = (batch_y_reg - y_mean) / (y_std + 1e-8)
 
         if epoch == 0 and batch_idx == 0:
-            
+
             print(f"\n[DEBUG] batch_x      shape={batch_x.shape}  "
                   f"min={batch_x.min():.4f}  max={batch_x.max():.4f}  "
                   f"has_nan={batch_x.isnan().any().item()}  "
@@ -324,18 +434,31 @@ for epoch in range(20):
 
         preds = model(batch_x)
 
+        # Invert predictions and targets to real units (for logging only)
+        y_reg_mean_dev = y_reg_mean.to(device)
+        y_reg_std_dev  = y_reg_std.to(device)
+        preds_real     = preds[:, :6] * y_reg_std_dev + y_reg_mean_dev
+        targets_real   = batch_y_reg * y_reg_std_dev + y_reg_mean_dev
+
         if epoch == 0 and batch_idx == 0:
             print(f"[DEBUG] preds        shape={preds.shape}  "
-                  f"min={preds.min():.4f}  max={preds.max():.4f}  "
-                  f"has_nan={preds.isnan().any().item()}")
+                f"min={preds.min():.4f}  max={preds.max():.4f}  "
+                f"has_nan={preds.isnan().any().item()}")
+            print(f"[DEBUG] preds_real   min={preds_real.min():.4f}  max={preds_real.max():.4f}")
 
+        # Loss stays in NORMALIZED space — more stable training
         loss_reg   = mse_loss_fn(preds[:, :6], batch_y_reg)
         loss_cls   = bce_loss_fn(preds[:, 6],  batch_y_cls.float())
         total_loss = loss_reg + loss_cls
 
-        loss_reg_val = loss_reg.item()
-        loss_cls_val = loss_cls.item()
-        total_val    = total_loss.item()
+        # Real-unit MSE just for monitoring (not backpropagated)
+        with torch.no_grad():
+            loss_reg_real = mse_loss_fn(preds_real, targets_real)
+
+        loss_reg_val  = loss_reg.item()
+        loss_cls_val  = loss_cls.item()
+        total_val     = total_loss.item()
+        loss_real_val = loss_reg_real.item()  # RMSE-able: sqrt(loss_real_val)
 
         optimizer.zero_grad()
         total_loss.backward()
@@ -344,12 +467,12 @@ for epoch in range(20):
 
         if batch_idx % 50 == 0:
             print(f"  [Batch {batch_idx:04d}]  "
-                  f"loss_reg={loss_reg_val:.4f}  "
-                  f"loss_cls={loss_cls_val:.4f}  "
-                  f"total={total_val:.4f}")
-            print(f"           grad_norm={total_grad_norm:.4f}")
+                f"loss_reg={loss_reg_val:.4f} (norm)  "
+                f"loss_reg={loss_real_val:.4f} (real units, MSE)  "
+                f"RMSE={loss_real_val**0.5:.4f}  "
+                f"loss_cls={loss_cls_val:.4f}  "
+                f"total={total_val:.4f}")
 
-        
 
         running_loss_reg += loss_reg_val
         running_loss_cls += loss_cls_val
