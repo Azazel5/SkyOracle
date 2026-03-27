@@ -1,0 +1,58 @@
+============================================================
+Starting epoch 0
+
+[DEBUG] batch_x      shape=torch.Size([128, 42, 450, 449])  min=-7.5064  max=340.4359  has_nan=False  has_inf=False
+[DEBUG] batch_y_reg  shape=torch.Size([128, 6])  min=-2.7150  max=3.5413  has_nan=False
+[DEBUG] batch_y_cls  shape=torch.Size([128])  unique=[False, True]  has_nan=False
+[DEBUG] preds        shape=torch.Size([128, 7])  min=-1.5642  max=1.6542  has_nan=False
+[DEBUG] preds_real   min=-1.8273  max=300.2573
+  [Batch 0000]  loss_reg=1.0059 (norm)  loss_reg=104.3758 (real units, MSE)  RMSE=10.2164  loss_cls=0.8487  total=1.8546
+  [Batch 0050]  loss_reg=0.6360 (norm)  loss_reg=66.3740 (real units, MSE)  RMSE=8.1470  loss_cls=0.0511  total=0.6870
+  [Batch 0100]  loss_reg=2.4116 (norm)  loss_reg=48.8407 (real units, MSE)  RMSE=6.9886  loss_cls=0.2471  total=2.6587
+  [Batch 0150]  loss_reg=1.0404 (norm)  loss_reg=49.2594 (real units, MSE)  RMSE=7.0185  loss_cls=0.0710  total=1.1114
+
+Epoch 0 summary:
+  Total batches : 200  |  NaN batches: 0
+  Avg loss_reg  : 1.1367
+  Avg loss_cls  : 0.1628
+  *** New best model saved → checkpoints/best_model.pt  (loss=1.2995) ***
+
+============================================================
+Starting epoch 1
+  [Batch 0000]  loss_reg=0.6950 (norm)  loss_reg=44.8387 (real units, MSE)  RMSE=6.6962  loss_cls=0.1026  total=0.7976
+  [Batch 0050]  loss_reg=0.6770 (norm)  loss_reg=29.6854 (real units, MSE)  RMSE=5.4484  loss_cls=0.1385  total=0.8155
+  [Batch 0100]  loss_reg=0.4728 (norm)  loss_reg=43.0854 (real units, MSE)  RMSE=6.5639  loss_cls=0.0473  total=0.5201
+  [Batch 0150]  loss_reg=0.3377 (norm)  loss_reg=18.0681 (real units, MSE)  RMSE=4.2507  loss_cls=0.0399  total=0.3776
+
+Epoch 1 summary:
+  Total batches : 200  |  NaN batches: 0
+  Avg loss_reg  : 0.6316
+  Avg loss_cls  : 0.0801
+  *** New best model saved → checkpoints/best_model.pt  (loss=0.7118) ***
+
+============================================================
+Starting epoch 2
+  [Batch 0000]  loss_reg=0.4715 (norm)  loss_reg=32.2020 (real units, MSE)  RMSE=5.6747  loss_cls=0.0672  total=0.5387
+  [Batch 0050]  loss_reg=0.4657 (norm)  loss_reg=32.8371 (real units, MSE)  RMSE=5.7304  loss_cls=0.0434  total=0.5091
+  [Batch 0100]  loss_reg=0.4707 (norm)  loss_reg=47.5791 (real units, MSE)  RMSE=6.8978  loss_cls=0.0638  total=0.5344
+  [Batch 0150]  loss_reg=0.4244 (norm)  loss_reg=25.9391 (real units, MSE)  RMSE=5.0930  loss_cls=0.0983  total=0.5227
+
+Epoch 2 summary:
+  Total batches : 200  |  NaN batches: 0
+  Avg loss_reg  : 0.4956
+  Avg loss_cls  : 0.0589
+  *** New best model saved → checkpoints/best_model.pt  (loss=0.5546) ***
+
+============================================================
+Starting epoch 3
+  [Batch 0000]  loss_reg=0.3849 (norm)  loss_reg=17.0162 (real units, MSE)  RMSE=4.1251  loss_cls=0.0601  total=0.4450
+  [Batch 0050]  loss_reg=0.3626 (norm)  loss_reg=18.2290 (real units, MSE)  RMSE=4.2695  loss_cls=0.0372  total=0.3997
+  [Batch 0100]  loss_reg=0.3596 (norm)  loss_reg=11.9310 (real units, MSE)  RMSE=3.4541  loss_cls=0.0451  total=0.4046
+  [Batch 0150]  loss_reg=0.4593 (norm)  loss_reg=14.1061 (real units, MSE)  RMSE=3.7558  loss_cls=0.0186  total=0.4779
+
+Epoch 3 summary:
+  Total batches : 200  |  NaN batches: 0
+  Avg loss_reg  : 0.6304
+  Avg loss_cls  : 0.0496
+
+(model already stops improving at epoch 4, stop training)
