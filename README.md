@@ -70,3 +70,5 @@ The model showed strong convergence within the first three epochs, particularly 
 **Analysis:** * **Rapid Convergence:** The model effectively learned the primary variance of the weather patterns within two epochs, cutting the real-unit RMSE by more than half.
 * **Stability:** The inclusion of BatchNorm and AdamW prevented gradient spikes, despite the high dynamic range of the input weather data.
 * **Best Model:** The lowest total loss ($0.5546$) was achieved at Epoch 2, after which the model was saved as the production checkpoint.
+
+The best model is saved at ```checkpoints/best_model.pt```.
