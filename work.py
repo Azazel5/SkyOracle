@@ -2,11 +2,8 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-import matplotlib.pyplot as plt
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Subset
 
 
 device = torch.device("cuda")
@@ -73,6 +70,50 @@ start_date_2019 = '2019-01-01T00:00'
 start_date_2020 = '2020-01-01T00:00'
 start_date_2021 = '2021-01-01T00:00'
 
+import torch, os
+from collections import defaultdict
+from tqdm import tqdm
+
+def scan_dataset_for_nans(file_names, dataset_dir, max_files=None):
+    """
+    Scans every input tensor and reports:
+      - Which files contain NaNs
+      - Which channels are dirty (nan count per channel across all files)
+      - Which channels are dirty in targets
+    """
+    channel_nan_counts = defaultdict(int)   # channel_idx -> total nan pixels
+    channel_nan_files  = defaultdict(set)   # channel_idx -> set of filenames
+    dirty_files = []
+
+    files_to_scan = file_names[:max_files] if max_files else file_names
+
+    for fname in tqdm(files_to_scan, desc="Scanning"):
+        year = fname.split('_')[1][:4]
+        path = f"{dataset_dir}/inputs/{year}/{fname}"
+        try:
+            x = torch.load(path, weights_only=True).float()  # (H, W, 42)
+        except Exception as e:
+            print(f"  LOAD ERROR: {fname}: {e}")
+            continue
+
+        # Check per channel — x is (H, W, C) before permute
+        for c in range(x.shape[2]):
+            n_nan = x[:, :, c].isnan().sum().item()
+            if n_nan > 0:
+                channel_nan_counts[c] += n_nan
+                channel_nan_files[c].add(fname)
+
+        if x.isnan().any():
+            dirty_files.append(fname)
+
+    print(f"\n{'='*60}")
+    print(f"Dirty files: {len(dirty_files)} / {len(files_to_scan)}")
+    print(f"\nChannels with NaNs (sorted by total nan count):")
+    for c, count in sorted(channel_nan_counts.items(), key=lambda x: -x[1]):
+        print(f"  Channel {c:2d}: {count:>10,} NaN pixels across {len(channel_nan_files[c])} files")
+
+    return channel_nan_counts, channel_nan_files, dirty_files
+
 def generate_datetime_strings(start_date: str, n: int) -> list[str]:
     """
     Generate YYYYMMDDHH strings for n dates starting from start_date,
@@ -93,15 +134,73 @@ tensor_names_2019 = generate_datetime_strings(start_date_2019, n_2019)
 tensor_names_2020 = generate_datetime_strings(start_date_2020, n_2020)
 tensor_names_2021 = generate_datetime_strings(start_date_2021, n_2021)
 
-file_names = tensor_names_2018 + tensor_names_2019 + tensor_names_2020 + tensor_names_2021
-print(file_names[:10])
-print(len(file_names))
+files = tensor_names_2018 + tensor_names_2019 + tensor_names_2020 + tensor_names_2021
+
+import os
+
+def delete_by_indices(lst: list, bad_indices: list) -> list:
+    bad_set = set(bad_indices)
+    return [val for i, val in enumerate(lst) if i not in bad_set]
+
+# def filter_nan_files(file_names, dataset_dir, skip_channel=5, start_value=9000):
+#     """
+#     Scans all files and returns a cleaned list with NaN-containing files removed.
+#     Channel `skip_channel` is ignored (e.g. DSWRF which is legitimately NaN at night).
+#     """
+#     bad_indices_x = [] # These are indeces of files from the training dataset
+#     bad_indices_y = [] # These are indices from targets, basically 24 hours later, that must be removed
+
+#     for i, fname in enumerate(file_names):
+#         if i < start_value:
+#             continue
+#         year = fname.split('_')[1][:4]
+#         path = f"{dataset_dir}/inputs/{year}/{fname}"
+
+#         x = torch.load(path, weights_only=True).float()
+
+#         # Zero out the exempt channel before checking
+#         x_check = x.clone()
+#         x_check[..., skip_channel] = 0.0  # shape is (H, W, 42) before permute
+
+#         nan_channels = x_check.isnan().any(dim=0).any(dim=0)  # (42,)
+#         if nan_channels.any():
+#             bad_channels = nan_channels.nonzero(as_tuple=True)[0].tolist()
+#             print(f"[{i+1}/{len(file_names)}] BAD  {fname}  ->  channels={bad_channels}")
+#             if i + 24 < len(file_names):
+#                 bad_indices_x.append(i)
+#                 bad_indices_y.append(i+24)
+#         if i % 1000 == 0:
+#             print(i)
+ 
+#     return bad_indices_x, bad_indices_y
+
+# bad_indices_x, bad_indices_y = filter_nan_files(files, DATASET_DIR)
+
+# # Save to disk
+# with open("bad_indices_x.txt", "w") as f:
+#     f.write("\n".join(str(i) for i in bad_indices_x))
+
+# with open("bad_indices_y.txt", "w") as f:
+#     f.write("\n".join(str(i) for i in bad_indices_y))
+
+# assert(len(bad_indices_x) == len(bad_indices_x))
+with open("bad_indices_x.txt") as f:
+    bad_indices_x = [int(line.strip()) for line in f]
+
+with open("bad_indices_y.txt") as f:
+    bad_indices_y = [int(line.strip()) for line in f]
+file_names = delete_by_indices(files, bad_indices_x)
+y_reg = delete_by_indices(targets['values'], bad_indices_y)
+y_cls = delete_by_indices(targets['binary_label'], bad_indices_y)
+
+
+
 
 class WeatherDataset(Dataset):
-    def __init__(self, file_names, targets_dict, metadata, lead_time=24):
+    def __init__(self, file_names, metadata, y_reg_input, y_cls_input, lead_time=24):
         self.file_names = file_names
-        self.target_values = targets_dict['values']       # The 6 regression vars
-        self.target_labels = targets_dict['binary_label'] # The 1 rain label
+        self.target_values = y_reg_input       # The 6 regression vars
+        self.target_labels = y_cls_input # The 1 rain label
         self.lead_time = lead_time
         
         # Crop parameters (optional but recommended)
@@ -113,20 +212,29 @@ class WeatherDataset(Dataset):
         return len(self.file_names) - self.lead_time
 
     def __getitem__(self, idx):
-        fname = self.file_names[idx]
-        year = fname.split('_')[1][:4]
-        path = f"{DATASET_DIR}/inputs/{year}/{fname}"
-        
-        x = torch.load(path, weights_only=True).float()
-        x = x.permute(2, 0, 1)  # (42, H, W)
+            fname = self.file_names[idx]
+            year = fname.split('_')[1][:4]
+            path = f"{DATASET_DIR}/inputs/{year}/{fname}"
+            
+            x = torch.load(path, weights_only=True).float()
+            x = x.permute(2, 0, 1)  # (42, H, W)
 
-        # DSWRF@surface (channel 5) is NaN at night — physically correct fill is 0.0
-        if x[5].isnan().any():
-            x[5] = torch.nan_to_num(x[5], nan=0.0)
+            # DSWRF@surface (channel 5) is NaN at night — physically correct fill is 0.0
+            if x[5].isnan().any():
+                x[5] = torch.nan_to_num(x[5], nan=0.0)
 
-        y_reg = self.target_values[idx + self.lead_time]
-        y_cls = self.target_labels[idx + self.lead_time]
-        return x, y_reg, y_cls
+            # # NaN inspection
+            # nan_channels = x.isnan().any(dim=-1).any(dim=-1)  # shape (42,)
+            # if nan_channels.any():
+            #     print(f"[NaN] file={fname}")
+            #     for ch in nan_channels.nonzero(as_tuple=True)[0].tolist():
+            #         n = x[ch].isnan().sum().item()
+            #         print(f"  channel {ch:02d}: {n} NaNs  "
+            #             f"(min={x[ch].nanmean():.4f}, mean={torch.nanmean(x[ch]):.4f})")
+
+            y_reg = self.target_values[idx + self.lead_time]
+            y_cls = self.target_labels[idx + self.lead_time]
+            return x, y_reg, y_cls
 
 # Model architecture
 class WeatherCNN(nn.Module):
@@ -151,11 +259,18 @@ class WeatherCNN(nn.Module):
 
 # 1. Setup
 print("Setup")
-dataset = WeatherDataset(file_names, targets, metadata)
-train_loader = DataLoader(dataset, batch_size=32, shuffle=True)
+# y indices still null
+valid_indices = [
+    i for i in range(len(file_names) - 24)
+    if (not y_reg[i + 24].isnan().any() and not y_cls[i + 24].isnan().any())
+]
+print(f"Valid samples: {len(valid_indices)} / {len(file_names) - 24}")
+
+dataset = Subset(WeatherDataset(file_names, metadata, y_reg, y_cls), valid_indices)
+train_loader = DataLoader(dataset, batch_size=128, shuffle=True)
 
 model = WeatherCNN().to(device)
-optimizer = optim.AdamW(model.parameters(), lr=1e-3)
+optimizer = optim.AdamW(model.parameters(), lr=1e-5)
 mse_loss_fn = nn.MSELoss()
 bce_loss_fn = nn.BCEWithLogitsLoss()
 
@@ -168,7 +283,8 @@ save_dir = "checkpoints"
 os.makedirs(save_dir, exist_ok=True)
 best_loss = float('inf')
 
-for epoch in range(10):
+
+for epoch in range(20):
     print(f"\n{'='*60}")
     print(f"Starting epoch {epoch}")
     
@@ -183,7 +299,18 @@ for epoch in range(10):
         batch_y_cls = batch_y_cls.to(device)
         total_batches += 1
 
+        assert not batch_x.isnan().any(), "NaN survived into training!"
+        assert not batch_y_reg.isnan().any(), "NaN survived into training!"
+        assert not batch_y_cls.isnan().any(), "NaN survived into training!"
+
+        # y_mean = batch_y_reg.mean(dim=0)
+        # y_std  = batch_y_reg.std(dim=0)
+
+        # Normalize targets
+        # batch_y_reg_norm = (batch_y_reg - y_mean) / (y_std + 1e-8)
+
         if epoch == 0 and batch_idx == 0:
+            
             print(f"\n[DEBUG] batch_x      shape={batch_x.shape}  "
                   f"min={batch_x.min():.4f}  max={batch_x.max():.4f}  "
                   f"has_nan={batch_x.isnan().any().item()}  "
@@ -212,8 +339,8 @@ for epoch in range(10):
 
         optimizer.zero_grad()
         total_loss.backward()
-
-        total_grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=float('inf'))
+        total_grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        optimizer.step()
 
         if batch_idx % 50 == 0:
             print(f"  [Batch {batch_idx:04d}]  "
@@ -222,7 +349,7 @@ for epoch in range(10):
                   f"total={total_val:.4f}")
             print(f"           grad_norm={total_grad_norm:.4f}")
 
-        optimizer.step()
+        
 
         running_loss_reg += loss_reg_val
         running_loss_cls += loss_cls_val
