@@ -23,12 +23,12 @@ class TrainConfig:
     lead_hours: int = 24
     train_years: tuple[int, ...] = (2018, 2019, 2020)
     val_years: tuple[int, ...] = (2021,)
-    batch_size: int = 64
+    batch_size: int = 16
     epochs: int = 10
     lr: float = 1e-4
     weight_decay: float = 1e-2
     num_workers: int = 2
-    base_channels: int = 32
+    base_channels: int = 16
     seed: int = 137
 
 
@@ -50,14 +50,19 @@ def main() -> None:
     p.add_argument("--dataset-dir", default="/cluster/tufts/c26sp1cs0137/data/assignment2_data/dataset")
     p.add_argument("--checkpoint-dir", default="checkpoints/subhanga")
     p.add_argument("--epochs", type=int, default=10)
-    p.add_argument("--batch-size", type=int, default=64)
+    p.add_argument("--batch-size", type=int, default=16)
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--weight-decay", type=float, default=1e-2)
-    p.add_argument("--base-channels", type=int, default=32)
+    p.add_argument("--base-channels", type=int, default=16)
     p.add_argument("--train-years", default="2018,2019,2020")
     p.add_argument("--val-years", default="2021")
     p.add_argument("--num-workers", type=int, default=2)
     p.add_argument("--seed", type=int, default=137)
+    p.add_argument(
+        "--no-amp",
+        action="store_true",
+        help="Disable mixed precision (uses more VRAM).",
+    )
     args = p.parse_args()
 
     cfg = TrainConfig(
@@ -156,23 +161,43 @@ def main() -> None:
         json.dump(asdict(cfg), f, indent=2)
 
     best_val = float("inf")
+    use_amp = device.type == "cuda" and not args.no_amp
+    amp_dtype = (
+        torch.bfloat16
+        if use_amp and torch.cuda.is_bf16_supported()
+        else torch.float16
+        if use_amp
+        else torch.float32
+    )
+    if use_amp:
+        print(f"Mixed precision (autocast): enabled, dtype={amp_dtype}")
 
     def run_epoch(loader: DataLoader, *, train: bool) -> float:
         model.train(train)
         total = 0.0
         n = 0
-        for x, y, _ycls in loader:
-            x = x.to(device, non_blocking=True)
-            y = y.to(device, non_blocking=True)
-            pred = model(x)
-            loss = loss_fn(pred, y)
-            if train:
-                optimizer.zero_grad(set_to_none=True)
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                optimizer.step()
-            total += float(loss.item()) * x.size(0)
-            n += int(x.size(0))
+        infer_ctx = torch.inference_mode if not train else torch.enable_grad
+        with infer_ctx():
+            for x, y, _ycls in loader:
+                x = x.to(device, non_blocking=True)
+                y = y.to(device, non_blocking=True)
+                if train:
+                    optimizer.zero_grad(set_to_none=True)
+                with torch.autocast(
+                    device_type=device.type,
+                    enabled=use_amp and device.type == "cuda",
+                    dtype=amp_dtype,
+                ):
+                    pred = model(x)
+                loss = loss_fn(pred.float(), y.float())
+                if train:
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                    optimizer.step()
+                total += float(loss.item()) * x.size(0)
+                n += int(x.size(0))
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
         return total / max(n, 1)
 
     for epoch in range(cfg.epochs):

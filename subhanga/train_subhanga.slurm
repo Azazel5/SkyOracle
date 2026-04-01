@@ -65,7 +65,9 @@ echo "CHECKPOINT_DIR=${CHECKPOINT_DIR}"
 python3 -m subhanga.train \
   --dataset-dir "${DATASET_DIR}" \
   --checkpoint-dir "${CHECKPOINT_DIR}" \
-  --epochs 10
+  --epochs 10 \
+  --batch-size 16 \
+  --base-channels 16
 
 echo "Job finished: $(date)"
 
