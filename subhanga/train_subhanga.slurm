@@ -40,9 +40,16 @@ echo "GPU info:"
 nvidia-smi || true
 
 # --- Environment ---
-# Prefer your existing conda env if available.
-source /cluster/tufts/hpc/apps/rhel8/external/apps/anaconda/202410/etc/profile.d/conda.sh
-conda activate geo
+# NOTE: The cluster PyTorch modules run inside an Apptainer container image.
+# The dataset lives under /cluster/tufts/... which is not visible inside that
+# container unless we explicitly bind-mount it.
+#
+# Setting APPTAINER_BINDPATH is safe even if Apptainer isn't used; it is just an
+# environment variable. When Apptainer is used, it fixes torch.load(...) file
+# lookups for /cluster/tufts/... paths.
+export APPTAINER_BINDPATH="/cluster/tufts/c26sp1cs0137/data"
+
+module load pytorch/2.8.0-cuda12.9-cudnn9
 
 python3 --version
 python3 -c "import torch; print('torch', torch.__version__); print('cuda available', torch.cuda.is_available())"
@@ -59,8 +66,6 @@ python3 -m subhanga.train \
   --dataset-dir "${DATASET_DIR}" \
   --checkpoint-dir "${CHECKPOINT_DIR}" \
   --epochs 10
-
-conda deactivate
 
 echo "Job finished: $(date)"
 
