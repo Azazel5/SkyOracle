@@ -14,7 +14,7 @@
 #SBATCH -n 1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-#SBATCH -t 02:00:00
+#SBATCH -t 12:00:00
 #SBATCH --constraint="l40|l40s|a100"
 #SBATCH -o subhanga/logs/train_%j.out
 #SBATCH -e subhanga/logs/train_%j.err
