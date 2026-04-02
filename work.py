@@ -6,7 +6,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, Subset
 
 
-device = torch.device("cuda")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DATASET_DIR = "/cluster/tufts/c26sp1cs0137/data/assignment2_data/dataset"
 metadata = torch.load(f"{DATASET_DIR}/metadata.pt", weights_only=False)
 targets = torch.load(f"{DATASET_DIR}/targets.pt", weights_only=False)
@@ -365,7 +365,7 @@ print(f"Valid samples1: {len(valid_indices)} / {len(file_names) - 24}")
 channel_stats = torch.load("channel_stats.pt")
 channel_mean, channel_std = channel_stats["mean"], channel_stats["std"]
 
-dataset = Subset(
+val_dataset = Subset(
     WeatherDataset(
         file_names,
         metadata,
@@ -377,7 +377,7 @@ dataset = Subset(
     valid_indices,
 )
 
-train_loader = DataLoader(dataset, batch_size=128, shuffle=True)
+train_loader = DataLoader(val_dataset, batch_size=128, shuffle=True)
 
 model = WeatherCNN().to(device)
 optimizer = optim.AdamW(model.parameters(), lr=1e-5)
@@ -394,103 +394,103 @@ os.makedirs(save_dir, exist_ok=True)
 best_loss = float('inf')
 
 
-for epoch in range(20):
-    print(f"\n{'='*60}")
-    print(f"Starting epoch {epoch}")
+# for epoch in range(20):
+#     print(f"\n{'='*60}")
+#     print(f"Starting epoch {epoch}")
 
-    nan_batches = 0
-    total_batches = 0
-    running_loss_reg = 0.0
-    running_loss_cls = 0.0
+#     nan_batches = 0
+#     total_batches = 0
+#     running_loss_reg = 0.0
+#     running_loss_cls = 0.0
 
-    for batch_idx, (batch_x, batch_y_reg, batch_y_cls) in enumerate(train_loader):
-        batch_x     = batch_x.to(device)
-        batch_y_reg = batch_y_reg.to(device)
-        batch_y_cls = batch_y_cls.to(device)
-        total_batches += 1
+#     for batch_idx, (batch_x, batch_y_reg, batch_y_cls) in enumerate(train_loader):
+#         batch_x     = batch_x.to(device)
+#         batch_y_reg = batch_y_reg.to(device)
+#         batch_y_cls = batch_y_cls.to(device)
+#         total_batches += 1
 
-        assert not batch_x.isnan().any(), "NaN survived into training!"
-        assert not batch_y_reg.isnan().any(), "NaN survived into training!"
-        assert not batch_y_cls.isnan().any(), "NaN survived into training!"
+#         assert not batch_x.isnan().any(), "NaN survived into training!"
+#         assert not batch_y_reg.isnan().any(), "NaN survived into training!"
+#         assert not batch_y_cls.isnan().any(), "NaN survived into training!"
 
-        # y_mean = batch_y_reg.mean(dim=0)
-        # y_std  = batch_y_reg.std(dim=0)
+#         # y_mean = batch_y_reg.mean(dim=0)
+#         # y_std  = batch_y_reg.std(dim=0)
 
-        # Normalize targets
-        # batch_y_reg_norm = (batch_y_reg - y_mean) / (y_std + 1e-8)
+#         # Normalize targets
+#         # batch_y_reg_norm = (batch_y_reg - y_mean) / (y_std + 1e-8)
 
-        if epoch == 0 and batch_idx == 0:
+#         if epoch == 0 and batch_idx == 0:
 
-            print(f"\n[DEBUG] batch_x      shape={batch_x.shape}  "
-                  f"min={batch_x.min():.4f}  max={batch_x.max():.4f}  "
-                  f"has_nan={batch_x.isnan().any().item()}  "
-                  f"has_inf={batch_x.isinf().any().item()}")
-            print(f"[DEBUG] batch_y_reg  shape={batch_y_reg.shape}  "
-                  f"min={batch_y_reg.min():.4f}  max={batch_y_reg.max():.4f}  "
-                  f"has_nan={batch_y_reg.isnan().any().item()}")
-            print(f"[DEBUG] batch_y_cls  shape={batch_y_cls.shape}  "
-                  f"unique={batch_y_cls.unique().tolist()}  "
-                  f"has_nan={batch_y_cls.isnan().any().item()}")
+#             print(f"\n[DEBUG] batch_x      shape={batch_x.shape}  "
+#                   f"min={batch_x.min():.4f}  max={batch_x.max():.4f}  "
+#                   f"has_nan={batch_x.isnan().any().item()}  "
+#                   f"has_inf={batch_x.isinf().any().item()}")
+#             print(f"[DEBUG] batch_y_reg  shape={batch_y_reg.shape}  "
+#                   f"min={batch_y_reg.min():.4f}  max={batch_y_reg.max():.4f}  "
+#                   f"has_nan={batch_y_reg.isnan().any().item()}")
+#             print(f"[DEBUG] batch_y_cls  shape={batch_y_cls.shape}  "
+#                   f"unique={batch_y_cls.unique().tolist()}  "
+#                   f"has_nan={batch_y_cls.isnan().any().item()}")
 
-        preds = model(batch_x)
+#         preds = model(batch_x)
 
-        # Invert predictions and targets to real units (for logging only)
-        y_reg_mean_dev = y_reg_mean.to(device)
-        y_reg_std_dev  = y_reg_std.to(device)
-        preds_real     = preds[:, :6] * y_reg_std_dev + y_reg_mean_dev
-        targets_real   = batch_y_reg * y_reg_std_dev + y_reg_mean_dev
+#         # Invert predictions and targets to real units (for logging only)
+#         y_reg_mean_dev = y_reg_mean.to(device)
+#         y_reg_std_dev  = y_reg_std.to(device)
+#         preds_real     = preds[:, :6] * y_reg_std_dev + y_reg_mean_dev
+#         targets_real   = batch_y_reg * y_reg_std_dev + y_reg_mean_dev
 
-        if epoch == 0 and batch_idx == 0:
-            print(f"[DEBUG] preds        shape={preds.shape}  "
-                f"min={preds.min():.4f}  max={preds.max():.4f}  "
-                f"has_nan={preds.isnan().any().item()}")
-            print(f"[DEBUG] preds_real   min={preds_real.min():.4f}  max={preds_real.max():.4f}")
+#         if epoch == 0 and batch_idx == 0:
+#             print(f"[DEBUG] preds        shape={preds.shape}  "
+#                 f"min={preds.min():.4f}  max={preds.max():.4f}  "
+#                 f"has_nan={preds.isnan().any().item()}")
+#             print(f"[DEBUG] preds_real   min={preds_real.min():.4f}  max={preds_real.max():.4f}")
 
-        # Loss stays in NORMALIZED space — more stable training
-        loss_reg   = mse_loss_fn(preds[:, :6], batch_y_reg)
-        loss_cls   = bce_loss_fn(preds[:, 6],  batch_y_cls.float())
-        total_loss = loss_reg + loss_cls
+#         # Loss stays in NORMALIZED space — more stable training
+#         loss_reg   = mse_loss_fn(preds[:, :6], batch_y_reg)
+#         loss_cls   = bce_loss_fn(preds[:, 6],  batch_y_cls.float())
+#         total_loss = loss_reg + loss_cls
 
-        # Real-unit MSE just for monitoring (not backpropagated)
-        with torch.no_grad():
-            loss_reg_real = mse_loss_fn(preds_real, targets_real)
+#         # Real-unit MSE just for monitoring (not backpropagated)
+#         with torch.no_grad():
+#             loss_reg_real = mse_loss_fn(preds_real, targets_real)
 
-        loss_reg_val  = loss_reg.item()
-        loss_cls_val  = loss_cls.item()
-        total_val     = total_loss.item()
-        loss_real_val = loss_reg_real.item()  # RMSE-able: sqrt(loss_real_val)
+#         loss_reg_val  = loss_reg.item()
+#         loss_cls_val  = loss_cls.item()
+#         total_val     = total_loss.item()
+#         loss_real_val = loss_reg_real.item()  # RMSE-able: sqrt(loss_real_val)
 
-        optimizer.zero_grad()
-        total_loss.backward()
-        total_grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        optimizer.step()
+#         optimizer.zero_grad()
+#         total_loss.backward()
+#         total_grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+#         optimizer.step()
 
-        if batch_idx % 50 == 0:
-            print(f"  [Batch {batch_idx:04d}]  "
-                f"loss_reg={loss_reg_val:.4f} (norm)  "
-                f"loss_reg={loss_real_val:.4f} (real units, MSE)  "
-                f"RMSE={loss_real_val**0.5:.4f}  "
-                f"loss_cls={loss_cls_val:.4f}  "
-                f"total={total_val:.4f}")
+#         if batch_idx % 50 == 0:
+#             print(f"  [Batch {batch_idx:04d}]  "
+#                 f"loss_reg={loss_reg_val:.4f} (norm)  "
+#                 f"loss_reg={loss_real_val:.4f} (real units, MSE)  "
+#                 f"RMSE={loss_real_val**0.5:.4f}  "
+#                 f"loss_cls={loss_cls_val:.4f}  "
+#                 f"total={total_val:.4f}")
 
 
-        running_loss_reg += loss_reg_val
-        running_loss_cls += loss_cls_val
+#         running_loss_reg += loss_reg_val
+#         running_loss_cls += loss_cls_val
 
-    good_batches = total_batches - nan_batches
-    avg_loss_reg = running_loss_reg / good_batches if good_batches > 0 else float('nan')
-    avg_loss_cls = running_loss_cls / good_batches if good_batches > 0 else float('nan')
-    avg_total    = avg_loss_reg + avg_loss_cls
+#     good_batches = total_batches - nan_batches
+#     avg_loss_reg = running_loss_reg / good_batches if good_batches > 0 else float('nan')
+#     avg_loss_cls = running_loss_cls / good_batches if good_batches > 0 else float('nan')
+#     avg_total    = avg_loss_reg + avg_loss_cls
 
-    print(f"\nEpoch {epoch} summary:")
-    print(f"  Total batches : {total_batches}  |  NaN batches: {nan_batches}")
-    if good_batches > 0:
-        print(f"  Avg loss_reg  : {avg_loss_reg:.4f}")
-        print(f"  Avg loss_cls  : {avg_loss_cls:.4f}")
+#     print(f"\nEpoch {epoch} summary:")
+#     print(f"  Total batches : {total_batches}  |  NaN batches: {nan_batches}")
+#     if good_batches > 0:
+#         print(f"  Avg loss_reg  : {avg_loss_reg:.4f}")
+#         print(f"  Avg loss_cls  : {avg_loss_cls:.4f}")
 
-       # ── Save best model separately ─────────────────────────────────────
-    if good_batches > 0 and avg_total < best_loss:
-        best_loss = avg_total
-        best_path = os.path.join(save_dir, "best_model.pt")
-        torch.save(model.state_dict(), best_path)
-        print(f"  *** New best model saved → {best_path}  (loss={best_loss:.4f}) ***")
+#        # ── Save best model separately ─────────────────────────────────────
+#     if good_batches > 0 and avg_total < best_loss:
+#         best_loss = avg_total
+#         best_path = os.path.join(save_dir, "best_model.pt")
+#         torch.save(model.state_dict(), best_path)
+#         print(f"  *** New best model saved → {best_path}  (loss={best_loss:.4f}) ***")
