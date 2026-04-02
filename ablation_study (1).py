@@ -1,0 +1,205 @@
+"""
+Channel-Level Ablation Study for WeatherCNN
+=============================================
+For each of the 42 input channels, replace it with its mean value
+(i.e. a flat, uninformative field) across the validation set, run
+inference, and measure the increase in regression MSE vs. baseline.
+
+A large ΔMSE → the model depends heavily on that channel.
+"""
+
+import os
+import csv
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+from torch.utils.data import DataLoader, Subset
+
+# ── Paste / import your definitions ───────────────────────────────────────────
+# from my_module import WeatherDataset, WeatherCNN, DATASET_DIR
+# (or paste them inline below)
+
+DATASET_DIR = "."          # ← adjust
+DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+SAVE_DIR    = "ablation_results"
+BATCH_SIZE  = 64           # can be smaller than training; we only do forward passes
+
+# Human-readable names for the 42 channels — edit to match your data.
+# If None, channels are labelled Ch_00 … Ch_41.
+CHANNEL_NAMES = None
+# Example:
+# CHANNEL_NAMES = [
+#     "TMP@2m", "DPT@2m", "RH@2m", "UGRD@10m", "VGRD@10m",
+#     "DSWRF@sfc", "APCP@sfc", ...   # 42 total
+# ]
+
+# Human-readable names for the 6 regression targets.
+OUTPUT_NAMES = [f"Output_{i}" for i in range(6)]
+# Example: OUTPUT_NAMES = ["lat", "lon", "speed", "pressure", "rh", "precip"]
+
+
+# ── 1. Load model ──────────────────────────────────────────────────────────────
+model = WeatherCNN().to(DEVICE)
+model.load_state_dict(torch.load("best_model.pt", map_location=DEVICE))
+model.eval()
+print("Model loaded.")
+
+
+# ── 2. Build validation DataLoader ────────────────────────────────────────────
+channel_stats = torch.load("channel_stats.pt")
+channel_mean  = channel_stats["mean"]   # shape (42,)
+channel_std   = channel_stats["std"]    # shape (42,)
+
+# ── Paste the same setup you used before training ─────────────────────────────
+# file_names, metadata, y_reg_norm, y_cls, valid_indices = ...
+
+val_dataset = Subset(
+    WeatherDataset(
+        file_names,
+        metadata,
+        y_reg_norm,
+        y_cls,
+        channel_mean=channel_mean,
+        channel_std=channel_std,
+    ),
+    valid_indices,
+)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+# y_reg_mean / y_reg_std used during training to normalise targets
+# (needed only for real-unit RMSE reporting)
+# y_reg_mean = torch.load("y_reg_mean.pt")   # shape (6,)
+# y_reg_std  = torch.load("y_reg_std.pt")    # shape (6,)
+y_reg_mean = None   # ← set if available, else real-unit RMSE is skipped
+y_reg_std  = None   # ← same
+
+
+# ── 3. Helpers ─────────────────────────────────────────────────────────────────
+@torch.no_grad()
+def evaluate(loader, channel_to_ablate: int = None, ablate_value: float = 0.0):
+    """
+    Run inference on loader.  If channel_to_ablate is not None, replace that
+    channel with ablate_value (in normalised space, 0.0 = channel mean).
+
+    Returns:
+        total_mse       : scalar MSE over all samples (normalised targets)
+        per_output_mse  : list[float] length 6
+        total_rmse_real : scalar RMSE in real units (or None if scaling unavailable)
+    """
+    sum_sq      = torch.zeros(6)
+    sum_sq_real = torch.zeros(6) if (y_reg_mean is not None) else None
+    n_samples   = 0
+
+    for batch_x, batch_y_reg, _ in loader:
+        batch_x     = batch_x.to(DEVICE)
+        batch_y_reg = batch_y_reg.cpu()
+
+        if channel_to_ablate is not None:
+            batch_x[:, channel_to_ablate, :, :] = ablate_value
+
+        preds = model(batch_x)[:, :6].cpu()
+
+        sum_sq    += ((preds - batch_y_reg) ** 2).sum(dim=0)
+        n_samples += batch_x.shape[0]
+
+        if sum_sq_real is not None:
+            preds_real   = preds       * y_reg_std + y_reg_mean
+            targets_real = batch_y_reg * y_reg_std + y_reg_mean
+            sum_sq_real += ((preds_real - targets_real) ** 2).sum(dim=0)
+
+    per_output_mse  = (sum_sq / n_samples).tolist()
+    total_mse       = float((sum_sq / n_samples).mean())
+    total_rmse_real = float((sum_sq_real / n_samples).mean() ** 0.5) \
+                      if sum_sq_real is not None else None
+
+    return total_mse, per_output_mse, total_rmse_real
+
+
+# ── 4. Baseline ────────────────────────────────────────────────────────────────
+print("Computing baseline …")
+baseline_mse, baseline_per_out, baseline_rmse_r = evaluate(val_loader)
+print(f"  Baseline MSE  (normalised) : {baseline_mse:.6f}")
+if baseline_rmse_r is not None:
+    print(f"  Baseline RMSE (real units) : {baseline_rmse_r:.4f}")
+
+
+# ── 5. Ablation loop ───────────────────────────────────────────────────────────
+num_channels = 42
+if CHANNEL_NAMES is None:
+    CHANNEL_NAMES = [f"Ch_{i:02d}" for i in range(num_channels)]
+
+# In normalised space, ablating to 0.0 is equivalent to setting the channel
+# to its training mean — the most "uninformative but safe" replacement.
+ABLATE_VALUE = 0.0
+
+results = []
+print(f"\nAblating {num_channels} channels …")
+for ch in range(num_channels):
+    abl_mse, abl_per_out, _ = evaluate(val_loader, channel_to_ablate=ch,
+                                        ablate_value=ABLATE_VALUE)
+    delta_mse    = abl_mse - baseline_mse
+    pct_increase = 100.0 * delta_mse / (baseline_mse + 1e-12)
+
+    row = {
+        "channel"      : CHANNEL_NAMES[ch],
+        "ablated_mse"  : abl_mse,
+        "delta_mse"    : delta_mse,
+        "pct_increase" : pct_increase,
+    }
+    for i, name in enumerate(OUTPUT_NAMES):
+        row[f"delta_mse_{name}"] = abl_per_out[i] - baseline_per_out[i]
+
+    results.append(row)
+    print(f"  [{ch:02d}] {CHANNEL_NAMES[ch]:25s}  ΔMSE={delta_mse:+.6f}  ({pct_increase:+.1f}%)")
+
+
+# ── 6. Save CSV ────────────────────────────────────────────────────────────────
+os.makedirs(SAVE_DIR, exist_ok=True)
+results_sorted = sorted(results, key=lambda r: r["delta_mse"], reverse=True)
+
+csv_path = os.path.join(SAVE_DIR, "ablation_results.csv")
+with open(csv_path, "w", newline="") as f:
+    writer = csv.DictWriter(f, fieldnames=results_sorted[0].keys())
+    writer.writeheader()
+    writer.writerows(results_sorted)
+print(f"\nCSV saved → {csv_path}")
+
+
+# ── 7. Plots ───────────────────────────────────────────────────────────────────
+channels   = [r["channel"]   for r in results_sorted]
+delta_mses = [r["delta_mse"] for r in results_sorted]
+colors     = ["#d62728" if d > 0 else "#1f77b4" for d in delta_mses]
+
+# 7a. Overall importance bar chart
+fig, ax = plt.subplots(figsize=(10, max(5, num_channels * 0.32)))
+ax.barh(channels[::-1], delta_mses[::-1], color=colors[::-1])
+ax.axvline(0, color="black", linewidth=0.8, linestyle="--")
+ax.set_xlabel("ΔMSE (normalised)  —  positive means channel was important")
+ax.set_title("Channel Ablation Study — Overall Regression Importance")
+plt.tight_layout()
+fig.savefig(os.path.join(SAVE_DIR, "importance_overall.png"), dpi=150)
+plt.close(fig)
+print("Plot saved → importance_overall.png")
+
+# 7b. Per-output heatmap
+per_out_data = np.array([
+    [r[f"delta_mse_{n}"] for n in OUTPUT_NAMES]
+    for r in results_sorted
+])   # (42, 6)
+
+vmax = np.abs(per_out_data).max()
+fig, ax = plt.subplots(figsize=(max(6, len(OUTPUT_NAMES) * 1.4),
+                                 max(5, num_channels * 0.32)))
+im = ax.imshow(per_out_data, aspect="auto", cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+ax.set_xticks(range(len(OUTPUT_NAMES)))
+ax.set_xticklabels(OUTPUT_NAMES, rotation=45, ha="right")
+ax.set_yticks(range(len(channels)))
+ax.set_yticklabels(channels)
+fig.colorbar(im, ax=ax, label="ΔMSE per output (normalised)")
+ax.set_title("Channel Ablation Study — Importance per Regression Output")
+plt.tight_layout()
+fig.savefig(os.path.join(SAVE_DIR, "importance_per_output.png"), dpi=150)
+plt.close(fig)
+print("Plot saved → importance_per_output.png")
+
+print("\nDone.")
