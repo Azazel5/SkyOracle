@@ -112,7 +112,6 @@ def main() -> None:
     y_mean, y_std = compute_target_stats(y_reg, valid_target_rows)
     y_reg_norm = (y_reg - y_mean) / y_std
 
-<<<<<<< HEAD
     # Filter t_indices to exclude any t where the target at t+lead_hours is NaN.
     # y_reg_norm still holds NaN for bad rows; if such a row enters a batch the
     # MSE loss becomes NaN and corrupts all model parameters for the rest of training.
@@ -122,8 +121,6 @@ def main() -> None:
     print(f"Train inputs after NaN-target filter: {len(train_t)}")
     print(f"Val inputs after NaN-target filter  : {len(val_t)}")
 
-=======
->>>>>>> CNN-train-subhanga
     # Load precomputed channel stats if present (work.py produces channel_stats.pt)
     channel_mean = channel_std = None
     channel_stats_path = Path("channel_stats.pt")
