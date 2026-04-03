@@ -25,7 +25,7 @@ from work import WeatherCNN, val_dataset, y_reg_mean, y_reg_std
 DATASET_DIR = "/cluster/tufts/c26sp1cs0137/data/assignment2_data/dataset"
 DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SAVE_DIR    = "ablation_results"
-BATCH_SIZE  = 64           # can be smaller than training; we only do forward passes
+BATCH_SIZE  = 128
 
 
 # Human-readable names for the 42 channels — edit to match your data.
@@ -155,7 +155,7 @@ ABLATE_VALUE = 0.0
 results = []
 print(f"\nAblating {num_channels} channels …")
 # for ch in range(num_channels):
-for ch in range(2):
+for ch in range(42):
     abl_mse, abl_per_out, _ = evaluate(val_loader, channel_to_ablate=ch,
                                         ablate_value=ABLATE_VALUE)
     delta_mse    = abl_mse - baseline_mse
@@ -184,43 +184,3 @@ with open(csv_path, "w", newline="") as f:
     writer.writeheader()
     writer.writerows(results_sorted)
 print(f"\nCSV saved → {csv_path}")
-
-
-# # ── 7. Plots ───────────────────────────────────────────────────────────────────
-# channels   = [r["channel"]   for r in results_sorted]
-# delta_mses = [r["delta_mse"] for r in results_sorted]
-# colors     = ["#d62728" if d > 0 else "#1f77b4" for d in delta_mses]
-
-# # 7a. Overall importance bar chart
-# fig, ax = plt.subplots(figsize=(10, max(5, num_channels * 0.32)))
-# ax.barh(channels[::-1], delta_mses[::-1], color=colors[::-1])
-# ax.axvline(0, color="black", linewidth=0.8, linestyle="--")
-# ax.set_xlabel("ΔMSE (normalised)  —  positive means channel was important")
-# ax.set_title("Channel Ablation Study — Overall Regression Importance")
-# plt.tight_layout()
-# fig.savefig(os.path.join(SAVE_DIR, "importance_overall.png"), dpi=150)
-# plt.close(fig)
-# print("Plot saved → importance_overall.png")
-
-# # 7b. Per-output heatmap
-# per_out_data = np.array([
-#     [r[f"delta_mse_{n}"] for n in OUTPUT_NAMES]
-#     for r in results_sorted
-# ])   # (42, 6)
-
-# vmax = np.abs(per_out_data).max()
-# fig, ax = plt.subplots(figsize=(max(6, len(OUTPUT_NAMES) * 1.4),
-#                                  max(5, num_channels * 0.32)))
-# im = ax.imshow(per_out_data, aspect="auto", cmap="RdBu_r", vmin=-vmax, vmax=vmax)
-# ax.set_xticks(range(len(OUTPUT_NAMES)))
-# ax.set_xticklabels(OUTPUT_NAMES, rotation=45, ha="right")
-# ax.set_yticks(range(len(channels)))
-# ax.set_yticklabels(channels)
-# fig.colorbar(im, ax=ax, label="ΔMSE per output (normalised)")
-# ax.set_title("Channel Ablation Study — Importance per Regression Output")
-# plt.tight_layout()
-# fig.savefig(os.path.join(SAVE_DIR, "importance_per_output.png"), dpi=150)
-# plt.close(fig)
-# print("Plot saved → importance_per_output.png")
-
-# print("\nDone.")
