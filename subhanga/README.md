@@ -25,6 +25,8 @@ python -m subhanga.train \
   --multitask7
 ```
 
+**Status:** This 7-feature version **is on the Tufts HPC GPU queue** when submitted (jobs often stay **pending** a long time under shared-cluster priority). For the **submitted report, slides, and primary results**, we are **moving ahead with Darius’s best model** (the main `WeatherCNN` / `checkpoints/best_model.pt` narrative in the root `README.md`). **If the 7-feature run completes before Monday’s presentation**, we will **discuss those findings** (e.g. validation regression MSE vs. the 6-output baseline) **if time allows**.
+
 ### Train (on HPC)
 
 ```bash
