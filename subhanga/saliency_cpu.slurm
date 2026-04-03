@@ -31,6 +31,10 @@ export CUDA_VISIBLE_DEVICES=""
 
 module load pytorch/2.8.0-cuda12.9-cudnn9
 
+# PyTorch module does not include cartopy; install into user site for this interpreter
+echo "Installing cartopy (user) if needed …"
+python3 -m pip install --user --quiet cartopy
+
 python3 --version
 python3 -c "import torch; print('torch', torch.__version__); print('cuda', torch.cuda.is_available())"
 
