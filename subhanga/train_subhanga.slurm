@@ -14,7 +14,11 @@
 #SBATCH -n 1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
+<<<<<<< HEAD
 #SBATCH -t 08:00:00
+=======
+#SBATCH -t 04:00:00
+>>>>>>> CNN-train-subhanga
 #SBATCH --constraint="l40|l40s|a100"
 #SBATCH -o subhanga/logs/train_%j.out
 #SBATCH -e subhanga/logs/train_%j.err

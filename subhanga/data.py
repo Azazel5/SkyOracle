@@ -98,10 +98,13 @@ class WeatherForecastDataset(Dataset):
         if x[self.dswrf_channel_idx].isnan().any():
             x[self.dswrf_channel_idx] = torch.nan_to_num(x[self.dswrf_channel_idx], nan=0.0)
 
+<<<<<<< HEAD
         # Fill any remaining NaNs in other channels (e.g. files listed in bad_indices_x.txt)
         if x.isnan().any():
             x = torch.nan_to_num(x, nan=0.0)
 
+=======
+>>>>>>> CNN-train-subhanga
         if self.channel_mean is not None and self.channel_std is not None:
             x = (x - self.channel_mean[:, None, None]) / self.channel_std[:, None, None]
 
