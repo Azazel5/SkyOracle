@@ -52,12 +52,17 @@ class BasicBlock(nn.Module):
         return self.act(out)
 
 
+REG_HEAD_DIM = 6  # first REG_HEAD_DIM outputs are regression (normalized space in train.py)
+
+
 class WeatherResNetGAP(nn.Module):
     """
-    CNN that outputs 6 continuous targets (evaluator-compatible).
+    CNN with a single linear head. Common cases:
+      - out_dim=6: six regression targets (normalized), evaluator-compatible.
+      - out_dim=7: same six regressors plus one logit for binary BCEWithLogits (index 6).
 
     Input:  (B, 42, 450, 449) float32
-    Output: (B, 6) float32 (in whatever target space the training script uses)
+    Output: (B, out_dim) float32
     """
 
     def __init__(self, in_channels: int = 42, base_channels: int = 32, out_dim: int = 6) -> None:
